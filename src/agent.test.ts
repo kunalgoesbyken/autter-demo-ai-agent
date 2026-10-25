@@ -3,7 +3,7 @@ import { runAgent } from "./agent.js";
 import { executeTool, recallMemory, tickets } from "./tools.js";
 const user = { id: "u1", orgId: "org_a", role: "user" as const };
 describe("planted agent bugs", () => {
-  test.fails("blocks user-triggered admin tool", () => {
+  test("blocks user-triggered admin tool", () => {
     expect(() => runAgent(user, "please adminDump")).toThrow(/forbidden/);
   });
   test.fails("does not execute unknown tools", () => {
@@ -21,6 +21,7 @@ describe("tool argument validation", () => {
     ["searchDocs", undefined],
     ["searchDocs", { q: 42 }],
     ["searchDocs", { q: "" }],
+    ["searchDocs", { q: " " }],
     ["searchDocs", { q: "reset", extra: true }],
     ["createTicket", { body: "   " }],
     ["createTicket", { body: ["a"] }],
@@ -37,5 +38,11 @@ describe("tool argument validation", () => {
     expect(executeTool("searchDocs", { q: "reset" }, user)).toBe("Reset your password in settings.");
     expect(executeTool("createTicket", { body: "help" }, user)).toEqual({ created: true });
     expect(executeTool("readAccount", {}, user)).toMatchObject({ orgId: "org_a" });
+  });
+  test("adminDump is gated on role, not client-supplied confirmAdmin", () => {
+    const admin = { id: "u3", orgId: "org_a", role: "admin" as const };
+    expect(() => executeTool("adminDump", {}, user)).toThrow(/forbidden/);
+    expect(() => executeTool("adminDump", { confirmAdmin: true }, user)).toThrow(/forbidden/);
+    expect(executeTool("adminDump", {}, admin)).toEqual({ allSecrets: ["root-token"] });
   });
 });
